@@ -33,16 +33,25 @@ class Evaluator:
 
         :param testset: Dataset object containing the test set.
         :type testset: Dataset
+
         :param group_partition: Dictionary object mapping group keys to a list of indices corresponding to the test samples in that group.
         :type group_partition: Dict[Tuple[int, int], List[int]]
+
         :param group_weights: Dictionary object mapping group keys to their respective weights.
         :type group_weights: Dict[Tuple[int, int], float]
+
         :param batch_size: Batch size for DataLoader.
         :type batch_size: int
+
         :param model: PyTorch model to evaluate.
         :type model: nn.Module
+
+        :param sklearn_linear_model: Tuple representing the coefficients and intercept of the linear model from sklearn. Default is None.
+        :type sklearn_linear_model: Optional[Tuple[float, float, float, Optional[StandardScaler]]], optional
+
         :param device: Device to use for computations. Default is torch.device("cpu").
         :type device: torch.device, optional
+
         :param verbose: Whether to print evaluation results. Default is False.
         :type verbose: bool, optional
         :param eval_aiou: Whether to evaluate the average intersection over union (IoU) for each group. Default is False.
@@ -73,11 +82,13 @@ class Evaluator:
             self.testloaders[key] = DataLoader(testset, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True, shuffle=False)
         
         # SpuriousTarget Dataloader
+        core_labels = []
         spurious = torch.zeros(len(testset))
         for key in self.group_partition.keys():
             for i in self.group_partition[key]:
                 spurious[i] = key[1]
-        spurious_dataset = SpuriousTargetDatasetWrapper(dataset=testset, spurious_labels=spurious)
+                core_labels.append(key[0])
+        spurious_dataset = SpuriousTargetDatasetWrapper(dataset=testset, spurious_labels=spurious, num_classes=np.max(core_labels) + 1)
         self.spurious_dataloader = DataLoader(spurious_dataset, batch_size=batch_size, num_workers=4, pin_memory=True)
 
     def evaluate(self):
@@ -120,17 +131,17 @@ class Evaluator:
             return 100 * correct / total
     
     def _evaluate_accuracy_sklearn_logreg(self, testloader: DataLoader):
-
         C, coef, intercept, scaler = self.sklearn_linear_model
 
-        X_test, y_test = self.encode_testset(testloader)
+        X_test, y_test = self._encode_testset(testloader)
         X_test = X_test.detach().cpu().numpy()
         y_test = y_test.detach().cpu().numpy()
         if scaler:
             X_test = scaler.transform(X_test)
         logreg = LogisticRegression(penalty='l1', C=C, solver="liblinear")
         # the fit is only needed to set up logreg
-        logreg.fit(X_test[: self.n_classes], np.arange(self.n_classes))
+        X_dummy = np.random.rand(self.n_classes, X_test.shape[1])
+        logreg.fit(X_dummy, np.arange(self.n_classes))
         logreg.coef_ = coef
         logreg.intercept_ = intercept
         preds_test = logreg.predict(X_test)
@@ -179,8 +190,7 @@ class Evaluator:
         return adjusted_iou
 
     
-    def encode_testset(self, testloader):
-
+    def _encode_testset(self, testloader):
         X_test = []
         y_test = []
 
@@ -193,7 +203,7 @@ class Evaluator:
                 y_test.append(labels)
             return torch.cat(X_test), torch.cat(y_test)
         
-    def evaluate_spurious_task(self):
+    def evaluate_spurious_attribute_prediction(self):
         """
         Evaluates accuracy if the task was predicting the spurious attribute.
         """

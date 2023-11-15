@@ -11,7 +11,7 @@ from tqdm import tqdm
 from spuco.group_inference import BaseGroupInference
 from spuco.utils import (cluster_by_exemplars, convert_labels_to_partition,
                          convert_partition_to_labels, pairwise_similarity)
-from spuco.utils.random_seed import seed_randomness
+from spuco.utils.random_seed import seed_randomness, get_seed
 
 
 class ClusterAlg(Enum):
@@ -29,7 +29,6 @@ class Cluster(BaseGroupInference):
         cluster_alg: ClusterAlg = ClusterAlg.KMEANS,
         num_clusters: int = -1,
         max_clusters: int = -1,
-        random_seed: int = 0,
         device: torch.device = torch.device("cpu"), 
         verbose: bool = False
     ):
@@ -46,8 +45,6 @@ class Cluster(BaseGroupInference):
         :type num_clusters: int, optional
         :param max_clusters: The maximum number of clusters to consider. Defaults to -1.
         :type max_clusters: int, optional
-        :param random_seed: The random seed for reproducibility. Defaults to 0.
-        :type random_seed: int, optional
         :param device: The device to run the clustering on. Defaults to torch.device("cpu").
         :type device: torch.device, optional
         :param verbose: Whether to display progress and logging information. Defaults to False.
@@ -76,7 +73,6 @@ class Cluster(BaseGroupInference):
         self.cluster_alg = cluster_alg
         self.num_clusters = num_clusters 
         self.max_clusters = max_clusters
-        self.random_seed = random_seed
         self.device = device
         self.verbose = verbose
 
@@ -166,7 +162,7 @@ class Cluster(BaseGroupInference):
 
         # K-Means 
         clusterer = KMeans(n_clusters=num_clusters,
-                            random_state=self.random_seed,
+                            random_state=get_seed(),
                             n_init=10)
         cluster_labels = clusterer.fit_predict(Z)
         return cluster_labels, convert_labels_to_partition(cluster_labels.astype(int).tolist())

@@ -36,6 +36,7 @@ MINORITY_SIZE = {
 
 class SpuCoBirds(BaseSpuCoDataset):
     """
+    Subset of SpuCoAnimals only including Bird classes.
     """
 
     def __init__(
@@ -49,6 +50,25 @@ class SpuCoBirds(BaseSpuCoDataset):
         return_mask: bool = False
     ):
         """
+        Initializes the dataset.
+
+        :param root: Root directory of the dataset.
+        :type root: str
+
+        :param download: Whether to download the dataset.
+        :type download: bool, optional
+
+        :param label_noise: The amount of label noise to apply.
+        :type label_noise: float, optional
+
+        :param split: The split of the dataset.
+        :type split: str, optional
+
+        :param transform: Optional transform to be applied to the data.
+        :type transform: Callable, optional
+
+        :param verbose: Whether to print verbose information during dataset initialization.
+        :type verbose: bool, optional
         """
 
         seed_randomness(torch_module=torch, numpy_module=np, random_module=random)
@@ -81,8 +101,8 @@ class SpuCoBirds(BaseSpuCoDataset):
         if not os.path.exists(self.dset_dir):
             if not self.download:
                 raise RuntimeError(f"Dataset not found {self.dset_dir}, run again with download=True")
-            self.download_data()
-            self.untar_data()
+            self._download_data()
+            self._untar_data()
             os.remove(self.filename)
             
         try:
@@ -130,7 +150,7 @@ class SpuCoBirds(BaseSpuCoDataset):
 
         return self.data, list(range(2)), list(range(2))
 
-    def download_data(self):
+    def _download_data(self):
         self.filename = f"{self.root}/{DATASET_NAME}.tar.gz"
 
         response = requests.get(DOWNLOAD_URL, stream=True)
@@ -140,7 +160,7 @@ class SpuCoBirds(BaseSpuCoDataset):
             for chunk in tqdm(response.iter_content(chunk_size=1024), total=2952065, desc="Downloading SpuCoBirds", unit="KB"):
                 file.write(chunk)
     
-    def untar_data(self):
+    def _untar_data(self):
         # Open the tar.gz file
         with tarfile.open(self.filename, "r:gz") as tar:
             # Extract all files to the specified output directory
@@ -169,7 +189,7 @@ class SpuCoBirds(BaseSpuCoDataset):
         :rtype: tuple
         """
         
-        image = self.base_transform(Image.open(self.data.X[index]).convert('RGB'))
+        image = self.base_transform(Image.open(self.load_image(self.data.X[index])))
         label = self.data.labels[index]
 
         if self.return_mask:
